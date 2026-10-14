@@ -30,3 +30,11 @@ CREATE TABLE IF NOT EXISTS appointments(
 );
 CREATE INDEX IF NOT EXISTS appointments_schedule ON appointments(org_id,clinician_id,starts_at,ends_at);
 CREATE INDEX IF NOT EXISTS appointments_case ON appointments(org_id,case_id,starts_at);
+
+CREATE TABLE IF NOT EXISTS organization_settings(org_id TEXT PRIMARY KEY REFERENCES organizations(id), timezone TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS clinician_availability(org_id TEXT NOT NULL, clinician_id TEXT NOT NULL, windows_json TEXT NOT NULL, PRIMARY KEY(org_id,clinician_id), FOREIGN KEY(org_id,clinician_id) REFERENCES staff(org_id,user_id));
+CREATE TABLE IF NOT EXISTS time_off(id TEXT PRIMARY KEY,org_id TEXT NOT NULL,clinician_id TEXT NOT NULL,starts_at TEXT NOT NULL,ends_at TEXT NOT NULL,FOREIGN KEY(org_id,clinician_id) REFERENCES staff(org_id,user_id));
+CREATE TABLE IF NOT EXISTS appointment_series(id TEXT PRIMARY KEY,org_id TEXT NOT NULL REFERENCES organizations(id),request_key TEXT NOT NULL,request_digest TEXT NOT NULL,timezone TEXT NOT NULL,interval_weeks INTEGER NOT NULL,created_at TEXT NOT NULL,UNIQUE(org_id,request_key));
+CREATE TABLE IF NOT EXISTS series_members(series_id TEXT NOT NULL REFERENCES appointment_series(id),appointment_id TEXT PRIMARY KEY REFERENCES appointments(id),occurrence_date TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS staff_identities(issuer TEXT NOT NULL,subject TEXT NOT NULL,org_id TEXT NOT NULL,user_id TEXT NOT NULL,PRIMARY KEY(issuer,subject),FOREIGN KEY(org_id,user_id) REFERENCES staff(org_id,user_id));
+CREATE TABLE IF NOT EXISTS web_sessions(token_hash TEXT PRIMARY KEY,org_id TEXT NOT NULL,user_id TEXT NOT NULL,expires_at TEXT NOT NULL,FOREIGN KEY(org_id,user_id) REFERENCES staff(org_id,user_id));

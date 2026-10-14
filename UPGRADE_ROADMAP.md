@@ -11,11 +11,19 @@
 - Local save failures roll back appointment edits and show a retryable error.
 - Backend scheduling validates active assigned clinicians and case permissions, encrypts titles, normalizes timestamps to UTC, records audit events, and rejects stale updates using a version number.
 - Backend agenda queries enforce tenant and assignment scope, timezone-aware ranges, and bounded pagination.
-- SQLite serializes conflict checking and writes; the PostgreSQL scheduling migration is still pending.
+- SQLite serializes conflict checking and writes. A PostgreSQL scheduling blueprint with exclusion constraints is included but is unapplied and has no runtime adapter.
 
-The frontend remains a browser-local fictional-data preview. The Python service is separately tested and is not connected to the public website. Browser role previews are not authentication. This change does not send invitations or reminders, enable real-patient ingestion, or alter the live deployment.
+The original care-workspace frontend remains browser-local. The new shared staff scheduler uses the authenticated API and server persistence. Both remain fictional-data development workflows; the public website has not been deployed with the new backend. Browser role previews are not authentication. This change does not send invitations or reminders, enable real-patient ingestion, or alter the live deployment.
 
-## Suggested next upgrades, in priority order
+## Roadmap items 1, 2 and 3: implemented application code
+
+- Item 1: API-connected staff scheduler, Google Workspace OIDC adapter, server-revocable sessions, active membership checks, case/tenant scope, CSRF and same-origin mutation controls. SQLite shared persistence is runnable locally; Google client provisioning, staff mappings and hosted PostgreSQL runtime remain deployment dependencies.
+- Item 2: editable weekly hours and time-off blocks, organization timezone, DST gap/ambiguity rejection, server-side enforcement, and an unapplied PostgreSQL exclusion-constraint migration.
+- Item 3: finite weekly series, atomic creation, retry idempotency, single-session exceptions and edits/cancellations of future scheduled occurrences. Cancelled/completed/no-show occurrences are preserved.
+
+See [backend/STAFF_SETUP.md](backend/STAFF_SETUP.md) for setup and current deployment boundaries.
+
+## Further upgrades and deployment work
 
 | Priority | Frontend improvement | Backend work | Acceptance criteria |
 | --- | --- | --- | --- |
@@ -44,3 +52,5 @@ Run `node --test tests/*.test.cjs` and, from `backend/`, `../.venv/bin/python -m
 Run `npm ci`, `npx playwright install chromium`, and `npm run test:browser` for the reusable end-to-end check. It starts and stops a local preview server and writes screenshots to `artifacts/`.
 
 Browser validation covers scheduling, overlap rejection, attendance, cancellation, filtering, reload persistence and narrow-screen layout. The current public site is not changed by these local checks.
+
+Current validation: 57 backend tests, 11 frontend tests and two end-to-end browser flows pass locally on Python 3.12.15. Google provider responses are synthetic in browser tests; signed-token checks are tested separately. A real Google client has not been provisioned. GitHub CI is still unable to start because of the account billing lock reported on the PR.

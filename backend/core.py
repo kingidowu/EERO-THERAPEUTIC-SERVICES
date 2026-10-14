@@ -1,4 +1,4 @@
-"""Eero backend service foundation. No public server; authenticated adapter still required."""
+"""Eero development service foundation; web.py provides authenticated staff scheduling."""
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone, date
@@ -9,6 +9,7 @@ import sqlite3
 import uuid
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from scheduling import SchedulingMixin
+from planning import PlanningMixin
 
 class Denied(PermissionError): pass
 class NotReady(RuntimeError): pass
@@ -36,7 +37,7 @@ class Vault:
     def open(self, value: bytes, context: str) -> bytes:
         return self.cipher.decrypt(value[:12], value[12:], context.encode())
 
-class Backend(SchedulingMixin):
+class Backend(SchedulingMixin, PlanningMixin):
     """Local validation adapter. PHI ingestion is deliberately unavailable.
     Role and case assignment checks are server-side and read from the database.
     """

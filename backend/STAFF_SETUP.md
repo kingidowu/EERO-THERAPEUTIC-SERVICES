@@ -1,0 +1,71 @@
+# Shared staff scheduling setup
+
+The new `dist/staff.html` is a separate API-connected staff workspace. The original `index.html` remains the browser-local care-workspace prototype. There is no role-selector login in the shared staff workspace.
+
+## Local application
+
+Use Python 3.12 or later, with OpenSSL support. macOS's old system Python is not the supported web runtime.
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python backend/manage.py init-local
+.venv/bin/python backend/manage.py seed-demo
+.venv/bin/python backend/manage.py serve
+```
+
+`init-local` creates a private, ignored root `.env` with random encryption/session keys and an ignored SQLite database path. It refuses to overwrite an existing `.env`. Secrets are not printed. `seed-demo` creates one fictional case, an administrator, two assigned therapists, and weekday 09:00–17:00 availability. The initial timezone is `America/New_York`; set another IANA timezone using `seed-demo --timezone ...` before initializing a new organization. Existing timezone settings are preserved.
+
+Open `http://127.0.0.1:8020/`. Sign-in remains unavailable until Google credentials and staff mappings are configured.
+
+## New Google Workspace OAuth client
+
+This session has no Google Cloud management integration capable of creating OAuth clients. The Google Cloud console steps below remain an account-side dependency, rather than an application code change.
+
+1. Open [Google Auth Platform clients](https://console.cloud.google.com/auth/clients) in your organization's Google Cloud project, or create a project owned by the organization.
+2. Configure the app branding and audience. For an organization-only app, select the internal audience when the project belongs to your Workspace organization. Use only `openid profile email` scopes.
+3. Create an OAuth **Web application** client. Register `http://127.0.0.1:8020/auth/callback` for local verification. Register the exact HTTPS callback of the eventual shared staff deployment for that environment. Do not assume the existing static website runs this Python API.
+4. Store the client ID and client secret as `EERO_OIDC_CLIENT_ID` and `EERO_OIDC_CLIENT_SECRET` in the ignored local `.env` or the deployment's secret manager. Do not paste the secret into chat, commit it, or expose it through a public frontend variable.
+5. Map each staff member's verified Google `sub` identity to their existing organization staff record:
+
+```bash
+.venv/bin/python backend/manage.py map-identity \
+  --issuer https://accounts.google.com \
+  --subject VERIFIED_GOOGLE_SUBJECT \
+  --staff admin
+```
+
+Replace the subject and staff ID with the intended staff account. Obtain the stable subject through your organization's verified identity administration process, not from an unverified request. Unmapped Google accounts are denied; email address alone does not grant membership. Account provisioning and mappings are offline administrator operations, not public self-enrolment.
+
+The app uses Authlib's authorization-code/OIDC client, with state, nonce, PKCE, issuer/audience/signature/expiry checks. Provider credentials are not stored in the browser. Google tokens are exchanged server-side and are not retained after identity verification. App sessions use signed HttpOnly cookies with opaque server-revocable session IDs; every API request rechecks active staff membership. Mutations require a session CSRF token and reject a foreign Origin. Logout revokes the server session.
+
+References: [Google OpenID Connect setup and token validation](https://developers.google.com/identity/openid-connect/openid-connect), [Authlib Flask OIDC client](https://docs.authlib.org/en/latest/oauth2/client/web/flask.html), [Flask session and CSRF guidance](https://flask.palletsprojects.com/en/stable/web-security/).
+
+## Availability and recurrence behavior
+
+- Weekly hours are interpreted in the organization timezone. The UI edits one window per day; the backend can store multiple windows.
+- No availability record preserves compatibility with existing scheduling (unrestricted hours); an explicitly empty schedule blocks new sessions. New seeded therapists have configured working hours.
+- Changes to working hours cannot invalidate already scheduled future sessions. Time off cannot overlap scheduled sessions; reschedule/cancel them first.
+- Recurrence is finite: 2–26 occurrences, every 1–4 weeks. It preserves local wall-clock time through DST, rejecting missing or ambiguous local times. The full series rolls back if any occurrence is invalid or conflicts.
+- Idempotency keys protect creation retries. Retrying creation after cancellation does not regenerate occurrences.
+- “This session only” edits one occurrence. “This and future scheduled sessions” changes time, duration/location or cancels existing occurrences from the selected occurrence onward. Completed, no-show and cancelled occurrences remain unchanged. No new occurrences are generated by future edits.
+- Agenda pages contain 100 sessions; “Load more” fetches additional pages. Search covers loaded sessions only. Timezone-aware date ranges are inclusive in the staff UI and half-open in the service query.
+
+## Deployment boundary
+
+This is a runnable shared **fictional-data development** workspace with SQLite persistence. It is not deployed to the public website, and real-patient ingestion remains disabled. Multi-host deployment still requires a hosted database adapter, reviewed policies/migrations, managed encryption, backups and identity provisioning. `postgres_scheduling.sql` adds the production scheduling-table design and database exclusion constraints; it is an unapplied, fail-closed blueprint, not a functioning PostgreSQL runtime adapter.
+
+For HTTPS, set `EERO_PUBLIC_URL` to the trusted deployment origin, remove `EERO_LOCAL_HTTP`, The app derives its trusted host from that configured origin. Use a production WSGI server and a persistent database, not Flask's development server or ephemeral function filesystem. Existing credentials must be provisioned through the hosting secret manager.
+
+## Checks
+
+From the repository root:
+
+```bash
+PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v
+npm ci
+npx playwright install chromium
+PYTHON_BIN=.venv/bin/python npm run test:browser
+```
+
+The shared browser test uses an isolated loopback fixture with synthetic Google provider responses and two distinct staff identities. Real signed ID-token validation is tested separately with generated RSA keys and mocked provider HTTP responses. A real Google Workspace sign-in still needs the new client and staff subject mappings. Test identity shortcuts exist only in the isolated fixture, never in the application routes.

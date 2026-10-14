@@ -9,3 +9,6 @@ __pycache__/
 node_modules/
 artifacts/
 .DS_Store
+
+.venv312/
+!backend/.env.example

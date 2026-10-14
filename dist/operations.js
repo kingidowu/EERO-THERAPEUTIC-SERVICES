@@ -37,4 +37,5 @@ $('session-form').onsubmit=async e=>{e.preventDefault();if(!$('session-form').re
 // Preserve the scheduling history: cancellations replace destructive deletion.
 $('session-delete').textContent='Cancel session';
 $('session-delete').onclick=()=>{$('session-status').value='Cancelled';$('session-form').requestSubmit()};
+document.querySelector('.aside-bottom').insertAdjacentHTML('beforeend','<p><a href="staff.html">Open shared staff scheduler →</a></p>');
 if(state)render();

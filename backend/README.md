@@ -20,7 +20,7 @@ Create a virtual environment and install `requirements.txt`, then run from this 
 python -m unittest discover -s tests -v
 ```
 
-There is no HTTP server, public credential, or authentication bypass. `Principal` must eventually be constructed exclusively from a validated identity-provider session, never untrusted client fields. Staff provisioning in tests uses a fixture; a production administrative provisioning adapter still needs to be built.
+The authenticated Flask HTTP API is in `web.py`; its `Principal` is constructed from a server session created only after verified OIDC identity and staff mapping. There is no public credential or production authentication bypass. Staff provisioning remains an offline administrator operation; tests use isolated fixtures. See `STAFF_SETUP.md` for local setup and Google client provisioning.
 
 ## Production database and storage design
 
@@ -73,4 +73,12 @@ The default entry page now introduces the client preview with a separate staff-w
 
 `Backend.list_appointments(principal, from_at=..., to_at=..., status=None, limit=100, offset=0)` returns sessions starting within a half-open timezone-aware range. It excludes other tenants and cases not assigned to the caller (administrators can view organization cases), bounds page sizes to 200, decrypts only returned titles and records an agenda read audit event.
 
-The SQLite adapter uses an immediate write transaction for atomic conflict checking. Add PostgreSQL range/exclusion constraints and production migrations before multi-worker deployment; `postgres_blueprint.sql` does not yet implement scheduling. This is a service-layer capability, not an exposed HTTP endpoint. An authenticated adapter must derive `Principal` from verified identity, and must map browser-local date/time to an explicit timezone before calling this service. Existing real-patient ingestion restrictions remain in place.
+The SQLite adapter uses an immediate write transaction for atomic conflict checking. The unapplied `postgres_scheduling.sql` blueprint supplies range/exclusion constraints; a PostgreSQL runtime adapter and reviewed policies remain required before multi-host deployment. The service is now exposed through authenticated same-origin API endpoints in `web.py`. The adapter derives `Principal` from a verified session and resolves local date/time in the configured organization timezone. Existing real-patient ingestion restrictions remain in place.
+
+## Shared staff scheduling API, availability and recurrence
+
+`web.py` now exposes same-origin scheduling routes behind Google Workspace OIDC sign-in. `dist/staff.html` uses those routes rather than browser-local appointment storage. See [STAFF_SETUP.md](STAFF_SETUP.md) for local initialization, new Google OAuth client setup, staff-subject mappings and deployment requirements.
+
+`PlanningMixin` adds weekly working-hour windows, time-off blocks, DST-aware local-time validation, finite weekly series, idempotent series creation and atomic edits/cancellations of future scheduled occurrences. SQLite persists these features in the development adapter. `postgres_scheduling.sql` is an unapplied production-table blueprint with case/clinician overlap exclusion constraints and forced RLS; a PostgreSQL runtime adapter and reviewed policies still remain.
+
+Current checks target Python 3.12+. The shared browser fixture uses synthetic provider responses only in the test file; cryptographically signed OIDC response validation has separate tests. No production route permits role selection, arbitrary user headers or test-login bypasses.

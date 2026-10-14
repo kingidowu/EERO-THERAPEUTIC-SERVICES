@@ -20,3 +20,5 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+        env:
+          PYTHON_BIN: python
