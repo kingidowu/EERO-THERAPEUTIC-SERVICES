@@ -1,0 +1,17 @@
+{
+  "organization": "Eero Therapeutic Services",
+  "logo": "dist/assets/eero-logo.png",
+  "source": "Official logo extracted from the supplied Eero call card PDF",
+  "colors": {
+    "logo_blue": "#157CBE",
+    "cyan": "#23A6DE",
+    "magenta": "#BF3377",
+    "orange": "#F58534",
+    "warm_brown": "#A36250",
+    "primary_button": "#126AA3",
+    "body_text": "#392B28",
+    "secondary_text": "#626C75",
+    "background": "#F7FAFC"
+  },
+  "usage": "Blue primary actions, cyan highlights, magenta and orange accents, warm dark body text. Official logo remains unchanged on white. Dark mode uses brighter accessible accents."
+}
