@@ -30,9 +30,9 @@ See [backend/STAFF_SETUP.md](backend/STAFF_SETUP.md) for setup and current deplo
 | 1 | Real staff sign-in and shared schedule | Identity-provider validation, authenticated API adapter, server-derived principals, hosted database migration | Two signed-in staff see the same schedule; unauthorized users cannot access cases; concurrent scheduling cannot double-book |
 | 2 | Therapist availability, working hours and time off | Availability rules, explicit organization timezone, daylight-saving validation; PostgreSQL exclusion constraints for clinician and case time ranges | Slots respect time off; conflicting writes from separate API workers fail atomically |
 | 3 | Recurring appointments with “this session / future sessions” editing | Recurrence expansion, series identifiers, exceptions, bounded horizon and idempotency keys | Editing one occurrence preserves others; cancelling a series cannot recreate cancelled sessions |
-| 4 | Waitlist and staff assignment board | Referral queue, service and availability matching, supervisor overrides, audit trail | Staff can offer a freed slot and track accepted/declined offers; no automatic clinical assignment |
+| 4 | Waitlist (implemented); next: suggested open slots | Slot suggestions using service/availability rules and supervisor review | Staff can offer a freed slot and track accepted/declined offers; no automatic clinical assignment |
 | 5 | Reminder preferences and delivery status | Consent/preferences, background delivery queue, retry policy, deduplication and approved messaging provider | Cancellation suppresses reminders; retries do not duplicate messages; content excludes clinical details |
-| 6 | Daily staff task board and caseload view | Assigned-task queries, due-date priorities, supervisor workload summaries and pagination | Staff see tasks for accessible cases; counts match the filtered underlying records |
+| 6 | Staff task board (implemented); next: caseload view | Supervisor workload summaries and caseload reporting | Staff see tasks for accessible cases; counts match the filtered underlying records |
 | 7 | Session-to-note handoff and unsigned-note inbox | Appointment/encounter linkage, review workflow, versioned drafts and signature controls | Completed sessions link to drafts without implying clinical sign-off; reviewers can see outstanding notes |
 | 8 | Accessible calendar and mobile polish | Server pagination and stable filtered APIs | Keyboard-only flows work; focus returns after dialogs; screen readers announce validation; long schedules remain usable |
 | 9 | Operational reporting and billing preparation | Attendance aggregates, authorization/units tracking and explicit billing review | Reports reconcile to source sessions; no-show/cancelled records stay separate from delivered services |
@@ -53,4 +53,10 @@ Run `npm ci`, `npx playwright install chromium`, and `npm run test:browser` for 
 
 Browser validation covers scheduling, overlap rejection, attendance, cancellation, filtering, reload persistence and narrow-screen layout. The current public site is not changed by these local checks.
 
-Current validation: 57 backend tests, 11 frontend tests and two end-to-end browser flows pass locally on Python 3.12.15. Google provider responses are synthetic in browser tests; signed-token checks are tested separately. A real Google client has not been provisioned. GitHub CI is still unable to start because of the account billing lock reported on the PR.
+Current validation: 76 backend tests, 11 frontend tests and three end-to-end browser flows pass locally on Python 3.12.15. Google provider responses are synthetic in browser tests; signed-token checks are tested separately. A real Google client has not been provisioned. GitHub CI is still unable to start because of the account billing lock reported on the PR.
+
+## Further implemented operations
+
+- Roadmap item 4: staff-managed waitlist requests with service preference, administrative priority, earliest date, assigned-clinician slot offers, expiry, decline/withdrawal and confirmed booking. Availability/conflicts are checked at offer and again at booking. Offers are not reservations and do not deliver messages.
+- Roadmap item 6: shared assigned-task board with due dates, priority, Open/Overdue/Completed filters, pagination, versioned edits, completion/reopening and legacy task adoption. Caseload reporting remains a future enhancement.
+- Google client provisioning, hosted PostgreSQL runtime/policies, production deployment and external reminder delivery remain pending.

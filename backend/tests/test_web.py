@@ -90,3 +90,24 @@ class WebTests(unittest.TestCase):
     self.client=self.app.test_client();self.assertEqual(self.flow(change).status_code,401);self.assertEqual(self.client.get('/api/bootstrap').status_code,401)
   self.client=self.app.test_client();self.assertEqual(self.flow(tamper=True).status_code,401)
  def test_missing_login_state(self):self.assertEqual(self.client.get('/auth/callback?state=fake&code=fixture').status_code,401)
+
+class OperationsAPI(unittest.TestCase):
+ setUp=WebTests.setUp
+ tearDown=WebTests.tearDown
+ authenticated=WebTests.authenticated
+ post=WebTests.post
+ def test_task_routes_and_versioned_status(self):
+  c=self.authenticated();created=self.post(c,'/api/tasks',dict(case_id=self.cid,title='API follow-up',due_date='2001-01-01',assigned_user_id='c',priority='High'));self.assertEqual(created.status_code,200)
+  item=c.get('/api/tasks?status=Overdue').json['items'][0];self.assertEqual(item['title'],'API follow-up');self.assertEqual(self.post(c,'/api/tasks/state',dict(id=item['id'],version=item['version'],status='Done')).status_code,200)
+  self.assertEqual(c.get('/api/tasks?status=Open').json['items'],[])
+ def test_waitlist_routes_and_readonly_clinician(self):
+  c=self.authenticated();created=self.post(c,'/api/waitlist',dict(case_id=self.cid,service='Sample coaching',not_before='2099-12-01',priority='Normal'));self.assertEqual(created.status_code,200)
+  w=created.json;offer=self.post(c,'/api/waitlist/offer',dict(id=w['id'],version=w['version'],clinician_id='c',title='API offer',date='2099-12-01',time='09:00',duration=60,location='Office'));self.assertEqual(offer.status_code,200)
+  self.assertEqual(self.post(self.authenticated('c'),'/api/waitlist/book',dict(id=w['id'],version=offer.json['version'],confirmation='confirmed')).status_code,403)
+  booked=self.post(c,'/api/waitlist/book',dict(id=w['id'],version=offer.json['version'],confirmation='confirmed'));self.assertEqual(booked.status_code,200)
+  self.assertEqual(c.get('/api/waitlist?status=Booked').json['items'][0]['appointment_id'],booked.json['id'])
+ def test_new_write_routes_require_csrf_and_validate_shape(self):
+  c=self.authenticated()
+  self.assertEqual(c.post('/api/tasks',json={}).status_code,403);self.assertEqual(c.post('/api/waitlist',json={}).status_code,403)
+  self.assertEqual(self.post(c,'/api/tasks',dict(case_id=self.cid,title=[],due_date='2001-01-01',assigned_user_id='c')).status_code,400)
+  self.assertEqual(self.post(c,'/api/waitlist',dict(case_id=self.cid,service={},not_before='2099-12-01')).status_code,400)

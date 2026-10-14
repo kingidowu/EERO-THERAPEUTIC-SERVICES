@@ -5,7 +5,7 @@
   "description": "Fictional-data care workspace and scheduling preview",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
-    "test:browser": "node tests/browser-flow.cjs && node tests/shared-browser-flow.cjs",
+    "test:browser": "node tests/browser-flow.cjs && node tests/shared-browser-flow.cjs && node tests/operations-browser-flow.cjs",
     "preview": "python3 -m http.server 8000 --directory dist"
   },
   "devDependencies": { "playwright": "1.64.0" }

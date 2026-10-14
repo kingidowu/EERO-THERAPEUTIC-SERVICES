@@ -82,3 +82,7 @@ The SQLite adapter uses an immediate write transaction for atomic conflict check
 `PlanningMixin` adds weekly working-hour windows, time-off blocks, DST-aware local-time validation, finite weekly series, idempotent series creation and atomic edits/cancellations of future scheduled occurrences. SQLite persists these features in the development adapter. `postgres_scheduling.sql` is an unapplied production-table blueprint with case/clinician overlap exclusion constraints and forced RLS; a PostgreSQL runtime adapter and reviewed policies still remain.
 
 Current checks target Python 3.12+. The shared browser fixture uses synthetic provider responses only in the test file; cryptographically signed OIDC response validation has separate tests. No production route permits role selection, arbitrary user headers or test-login bypasses.
+
+## Operational queues
+
+`operations.py` adds authorized/versioned task creation, assignment, updates, completion/reopening, and bounded filtered task reads. It also implements waitlist requests, versioned slot offers, expiry, decline/withdrawal, read-only clinician queue access and idempotent confirmed booking. The appointment and queue update commit together; conflict/availability checks are repeated at booking. All operations preserve tenant/case scope and audit their reads/writes. New `/api/tasks` and `/api/waitlist` routes share existing session, CSRF and Origin protections. See `STAFF_SETUP.md` for behavior and current deployment boundaries.

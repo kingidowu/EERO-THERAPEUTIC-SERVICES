@@ -10,6 +10,7 @@ import uuid
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from scheduling import SchedulingMixin
 from planning import PlanningMixin
+from operations import OperationsMixin
 
 class Denied(PermissionError): pass
 class NotReady(RuntimeError): pass
@@ -37,7 +38,7 @@ class Vault:
     def open(self, value: bytes, context: str) -> bytes:
         return self.cipher.decrypt(value[:12], value[12:], context.encode())
 
-class Backend(SchedulingMixin, PlanningMixin):
+class Backend(SchedulingMixin, PlanningMixin, OperationsMixin):
     """Local validation adapter. PHI ingestion is deliberately unavailable.
     Role and case assignment checks are server-side and read from the database.
     """
@@ -59,6 +60,7 @@ class Backend(SchedulingMixin, PlanningMixin):
         permitted = {
             'create_case': {'administrator','supervisor','intake'},
             'schedule': {'administrator','supervisor','clinician','intake'},
+            'waitlist': {'administrator','supervisor','intake'},
             'assign': {'administrator','supervisor'},
             'read_case': {'administrator','supervisor','clinician','intake'},
             'upload': {'administrator','supervisor','clinician','intake'},
@@ -190,6 +192,7 @@ class Backend(SchedulingMixin, PlanningMixin):
         self._allowed(p,'task',row['case_id'])
         with self.db:
             self.db.execute('UPDATE tasks SET completed_at=? WHERE org_id=? AND id=?',(utcnow(),p.org_id,tid))
+            self.db.execute('UPDATE task_details SET version=version+1,updated_at=? WHERE task_id=?',(utcnow(),tid))
             self._audit(p,'task.complete',tid)
 
     def record_authorization(self,p,case_id,kind,evidence_document_id,expires_on):

@@ -38,3 +38,21 @@ CREATE TABLE IF NOT EXISTS appointment_series(id TEXT PRIMARY KEY,org_id TEXT NO
 CREATE TABLE IF NOT EXISTS series_members(series_id TEXT NOT NULL REFERENCES appointment_series(id),appointment_id TEXT PRIMARY KEY REFERENCES appointments(id),occurrence_date TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS staff_identities(issuer TEXT NOT NULL,subject TEXT NOT NULL,org_id TEXT NOT NULL,user_id TEXT NOT NULL,PRIMARY KEY(issuer,subject),FOREIGN KEY(org_id,user_id) REFERENCES staff(org_id,user_id));
 CREATE TABLE IF NOT EXISTS web_sessions(token_hash TEXT PRIMARY KEY,org_id TEXT NOT NULL,user_id TEXT NOT NULL,expires_at TEXT NOT NULL,FOREIGN KEY(org_id,user_id) REFERENCES staff(org_id,user_id));
+
+CREATE TABLE IF NOT EXISTS task_details(
+ task_id TEXT PRIMARY KEY REFERENCES tasks(id),org_id TEXT NOT NULL,assigned_user_id TEXT NOT NULL,
+ priority TEXT NOT NULL CHECK(priority IN ('High','Normal','Low')),version INTEGER NOT NULL DEFAULT 1,updated_at TEXT NOT NULL,
+ FOREIGN KEY(org_id,assigned_user_id) REFERENCES staff(org_id,user_id)
+);
+CREATE INDEX IF NOT EXISTS task_owner ON task_details(org_id,assigned_user_id);
+CREATE TABLE IF NOT EXISTS waitlist(
+ id TEXT PRIMARY KEY,org_id TEXT NOT NULL,case_id TEXT NOT NULL,encrypted_service BLOB NOT NULL,
+ not_before TEXT NOT NULL,priority TEXT NOT NULL CHECK(priority IN ('High','Normal','Low')),
+ status TEXT NOT NULL DEFAULT 'Waiting' CHECK(status IN ('Waiting','Offered','Booked','Withdrawn')),
+ version INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+ clinician_id TEXT,encrypted_offer_title BLOB,starts_at TEXT,ends_at TEXT,location TEXT,expires_at TEXT,
+ appointment_id TEXT REFERENCES appointments(id),
+ FOREIGN KEY(org_id,case_id) REFERENCES cases(org_id,id),FOREIGN KEY(org_id,clinician_id) REFERENCES staff(org_id,user_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_waitlist_case ON waitlist(org_id,case_id) WHERE status IN ('Waiting','Offered');
+CREATE INDEX IF NOT EXISTS waitlist_queue ON waitlist(org_id,status,created_at,id);

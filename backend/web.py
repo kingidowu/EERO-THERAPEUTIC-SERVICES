@@ -124,8 +124,11 @@ def create_app(config=None):
         assignments=[{'case_id':r['case_id'],'clinician_id':r['user_id']} for r in b.db.execute('SELECT case_id,user_id FROM assignments WHERE org_id=?',(p.org_id,)) if r['case_id'] in ids and r['user_id'] in allowed_staff]
         availability=[{'clinician_id':r['clinician_id'],'windows':json.loads(r['windows_json'])} for r in b.db.execute('SELECT * FROM clinician_availability WHERE org_id=?',(p.org_id,)) if r['clinician_id'] in allowed_staff]
         time_off=[dict(r) for r in b.db.execute('SELECT id,clinician_id,starts_at,ends_at FROM time_off WHERE org_id=? ORDER BY starts_at LIMIT 1000',(p.org_id,)) if r['clinician_id'] in allowed_staff]
+        task_staff=[{'id':r['user_id'],'name':r['user_id'],'role':r['role']} for r in b.db.execute("SELECT DISTINCT s.user_id,s.role FROM staff s JOIN assignments a ON a.org_id=s.org_id AND a.user_id=s.user_id WHERE s.org_id=? AND s.active=1 AND s.role IN ('administrator','supervisor','clinician','intake') AND (?='administrator' OR EXISTS(SELECT 1 FROM assignments mine WHERE mine.org_id=a.org_id AND mine.case_id=a.case_id AND mine.user_id=?)) ORDER BY s.user_id",(p.org_id,role,p.user_id))]
+        task_staff_ids={s['id'] for s in task_staff}
+        task_assignments=[{'case_id':r['case_id'],'user_id':r['user_id']} for r in b.db.execute('SELECT case_id,user_id FROM assignments WHERE org_id=?',(p.org_id,)) if r['case_id'] in ids and r['user_id'] in task_staff_ids]
         with b.db:b._audit(p,'workspace.read','workspace')
-        return jsonify(user_id=p.user_id,role=role,timezone=b.organization_timezone(p),csrf=session['csrf'],cases=cases,clinicians=clinicians,assignments=assignments,availability=availability,time_off=time_off)
+        return jsonify(user_id=p.user_id,role=role,timezone=b.organization_timezone(p),csrf=session['csrf'],cases=cases,clinicians=clinicians,assignments=assignments,availability=availability,time_off=time_off,task_staff=task_staff,task_assignments=task_assignments)
     @app.get('/api/appointments')
     def appointments():
         b=backend();zone=b.organization_timezone(g.principal)
@@ -167,4 +170,31 @@ def create_app(config=None):
         return jsonify(id=b.add_time_off(g.principal,d.get('clinician_id'),local_start(d.get('from_date',''),d.get('from_time',''),zone).isoformat(),local_start(d.get('to_date',''),d.get('to_time',''),zone).isoformat()))
     @app.delete('/api/time-off/<tid>')
     def remove_time_off(tid):backend().remove_time_off(g.principal,tid);return jsonify(ok=True)
+    @app.get('/api/tasks')
+    def task_list():
+        return jsonify(items=backend().list_work_tasks(g.principal,status=request.args.get('status','Open'),assignee=request.args.get('assignee') or None,priority=request.args.get('priority') or None,limit=int(request.args.get('limit',100)),offset=int(request.args.get('offset',0))))
+    @app.post('/api/tasks')
+    def task_save():
+        d=body(['id','version','case_id','title','due_date','assigned_user_id','priority'])
+        return jsonify(backend().save_work_task(g.principal,d.get('case_id'),d.get('title'),d.get('due_date'),d.get('assigned_user_id'),d.get('priority','Normal'),task_id=d.get('id'),expected_version=d.get('version')))
+    @app.post('/api/tasks/state')
+    def task_state():
+        d=body(['id','version','status']);return jsonify(backend().set_work_task_state(g.principal,d.get('id'),d.get('version'),d.get('status')))
+    @app.get('/api/waitlist')
+    def waitlist_list():
+        return jsonify(items=backend().list_waitlist(g.principal,status=request.args.get('status','Active'),limit=int(request.args.get('limit',100)),offset=int(request.args.get('offset',0))))
+    @app.post('/api/waitlist')
+    def waitlist_create():
+        d=body(['case_id','service','not_before','priority']);return jsonify(backend().add_waitlist(g.principal,d.get('case_id'),d.get('service'),d.get('not_before'),d.get('priority','Normal')))
+    @app.post('/api/waitlist/offer')
+    def waitlist_offer():
+        d=body(['id','version','clinician_id','title','date','time','duration','location']);b=backend()
+        start=local_start(d.get('date',''),d.get('time',''),b.organization_timezone(g.principal)).isoformat()
+        return jsonify(b.offer_waitlist(g.principal,d.get('id'),d.get('version'),d.get('clinician_id'),d.get('title'),start,d.get('duration',60),d.get('location','Office')))
+    @app.post('/api/waitlist/resolve')
+    def waitlist_resolve():
+        d=body(['id','version','action']);return jsonify(backend().resolve_waitlist(g.principal,d.get('id'),d.get('version'),d.get('action')))
+    @app.post('/api/waitlist/book')
+    def waitlist_book():
+        d=body(['id','version','confirmation']);return jsonify(backend().book_waitlist(g.principal,d.get('id'),d.get('version'),d.get('confirmation')))
     return app

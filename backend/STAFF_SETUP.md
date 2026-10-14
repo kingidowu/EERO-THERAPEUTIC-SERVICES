@@ -69,3 +69,17 @@ PYTHON_BIN=.venv/bin/python npm run test:browser
 ```
 
 The shared browser test uses an isolated loopback fixture with synthetic Google provider responses and two distinct staff identities. Real signed ID-token validation is tested separately with generated RSA keys and mocked provider HTTP responses. A real Google Workspace sign-in still needs the new client and staff subject mappings. Test identity shortcuts exist only in the isolated fixture, never in the application routes.
+
+## Waitlist and staff tasks
+
+**Staff tasks** lists tasks for accessible cases, with Open/Overdue/Completed filters, assigned-staff and priority filters, and search over loaded results. Due dates use the organization timezone. All supported staff roles can create/edit/complete/reopen tasks for cases they can access. Assignees must be active supported staff already assigned to the case. Edits and state changes require the version last read, so concurrent edits are rejected. Existing service-layer tasks without an assignee load as legacy tasks and must be assigned before the shared UI changes their completion state. Titles stay encrypted in the database.
+
+**Waitlist** supports one active request per case. Requests include a service preference, administrative priority and earliest session date. Administrators can manage organization requests; supervisors and intake staff can manage their assigned cases. Clinicians have read-only access for their assigned cases; billing users have no queue access. Service preferences and offered session titles are encrypted.
+
+Recording an offer checks assigned active clinicians, earliest date, working hours, time off and existing appointments. It does not send a message or reserve the slot. Offers expire after 48 hours or at session start, whichever comes first. Staff can return an offer to Waiting or withdraw an active request. Expired offers are visibly flagged.
+
+After staff records family acceptance, booking rechecks the offered slot inside the same transaction that creates the appointment and closes the waitlist entry. A conflict or expired offer leaves the queue unchanged. Retrying an already completed booking returns the original appointment, even if that appointment has subsequently been changed; it never creates a new session. This is a scheduling confirmation, not a clinical consent or signature.
+
+Queries are tenant/case scoped, paginated and audited; write routes use the same session/CSRF/Origin protections as scheduling. `operations-browser-flow.cjs` exercises two staff views, version conflicts, complete/reopen, waitlist duplicate prevention, decline/re-offer, acceptance-to-schedule handoff, persistence and mobile layouts. Google login remains synthetic in the isolated browser fixture.
+
+`postgres_operations.sql` extends the unapplied PostgreSQL blueprint with task priority/versioning and waitlist tables. It does not change the current SQLite runtime or activate production database policies.
