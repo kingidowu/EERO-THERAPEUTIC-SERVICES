@@ -46,7 +46,7 @@ Real-patient ingestion is disabled. This prototype has not been certified as HIP
 
 ## Hosting
 
-A static host can serve `dist/`. Hosting the source on GitHub does not run the backend. The existing Sites deployment configuration is in `.openai/hosting.json`; retain the current project and sharing settings when publishing there.
+A static host can serve `dist/`. Hosting the source on GitHub does not run the backend. The source archive does not include the live hosting configuration. Confirm the existing hosting project and sharing settings before publishing.
 
 ## Scheduling and staff operations
 
