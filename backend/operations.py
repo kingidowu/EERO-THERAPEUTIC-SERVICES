@@ -31,6 +31,7 @@ class OperationsMixin:
                 if not row:raise Denied('Task unavailable')
                 self._allowed(p,'task',row['case_id'])
                 if type(expected_version) is not int or row['version']!=expected_version:raise ValueError('Task changed; refresh before saving')
+            if (not row or row['completed_at'] is None) and self.db.execute('SELECT status FROM cases WHERE org_id=? AND id=?',(p.org_id,case_id)).fetchone()['status']=='closed':raise ValueError('Reopen the case before adding open tasks')
             title_bytes=self.vault.seal(title.strip().encode(),f'{p.org_id}/{tid}/task')
             if row:self.db.execute('UPDATE tasks SET case_id=?,encrypted_title=?,due_date=? WHERE org_id=? AND id=?',(case_id,title_bytes,due_date,p.org_id,tid))
             else:self.db.execute('INSERT INTO tasks(id,org_id,case_id,encrypted_title,due_date,created_at) VALUES(?,?,?,?,?,?)',(tid,p.org_id,case_id,title_bytes,due_date,now))
@@ -48,6 +49,7 @@ class OperationsMixin:
             if not row:raise Denied('Task unavailable')
             self._allowed(p,'task',row['case_id'])
             if type(expected_version) is not int or row['version']!=expected_version:raise ValueError('Task changed; refresh before updating')
+            if status=='Open' and self.db.execute('SELECT status FROM cases WHERE org_id=? AND id=?',(p.org_id,row['case_id'])).fetchone()['status']=='closed':raise ValueError('Reopen the case before reopening tasks')
             if row['version']==0:raise ValueError('Assign this legacy task before updating it')
             self.db.execute('UPDATE tasks SET completed_at=? WHERE org_id=? AND id=?',(utcnow() if status=='Done' else None,p.org_id,task_id))
             self.db.execute('UPDATE task_details SET version=version+1,updated_at=? WHERE task_id=?',(utcnow(),task_id))
@@ -82,6 +84,7 @@ class OperationsMixin:
         wid=identifier();now=utcnow()
         with self.db:
             self.db.execute('BEGIN IMMEDIATE');self._allowed(p,'waitlist',case_id)
+            if self.db.execute('SELECT status FROM cases WHERE org_id=? AND id=?',(p.org_id,case_id)).fetchone()['status']=='closed':raise ValueError('Reopen the case before creating a waitlist request')
             if self.db.execute("SELECT 1 FROM waitlist WHERE org_id=? AND case_id=? AND status IN ('Waiting','Offered')",(p.org_id,case_id)).fetchone():raise ValueError('This case already has an active waitlist entry')
             self.db.execute('INSERT INTO waitlist(id,org_id,case_id,encrypted_service,not_before,priority,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',(wid,p.org_id,case_id,self.vault.seal(service.strip().encode(),f'{p.org_id}/{wid}/service'),not_before,priority,now,now))
             self._audit(p,'waitlist.create',wid)

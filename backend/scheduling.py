@@ -6,12 +6,14 @@ STATUSES = ('Scheduled', 'Completed', 'Cancelled', 'No-show')
 LOCATIONS = ('In community', 'In home', 'Office', 'Virtual')
 
 class SchedulingMixin:
-    def _schedule_values(self, p, case_id, clinician_id, title, starts_at, duration, location, status):
+    def _schedule_values(self, p, case_id, clinician_id, title, starts_at, duration, location, status, *, historical_cancellation=False):
         from core import Denied
+        if not isinstance(case_id,str) or not case_id:raise ValueError('Choose a case folder')
         self._allowed(p, 'schedule', case_id)
+        if status=='Scheduled' and self.db.execute('SELECT status FROM cases WHERE org_id=? AND id=?',(p.org_id,case_id)).fetchone()['status']=='closed':raise ValueError('Reopen the case before scheduling a session')
         clinician = self.db.execute('SELECT role FROM staff WHERE org_id=? AND user_id=? AND active=1', (p.org_id, clinician_id)).fetchone()
         assigned = self.db.execute('SELECT 1 FROM assignments WHERE org_id=? AND case_id=? AND user_id=?', (p.org_id, case_id, clinician_id)).fetchone()
-        if not clinician or clinician['role'] != 'clinician' or not assigned:
+        if not historical_cancellation and (not clinician or clinician['role'] != 'clinician' or not assigned):
             raise Denied('An active clinician assigned to this case is required')
         if not isinstance(title, str) or not title.strip() or len(title) > 120:
             raise ValueError('Session title must have 1–120 characters')
@@ -43,7 +45,6 @@ class SchedulingMixin:
 
     def _write_appointment(self,p,case_id,clinician_id,title,starts_at,duration,location,status,*,appointment_id=None,expected_version=None):
         from core import Denied, utcnow
-        title, start, end = self._schedule_values(p, case_id, clinician_id, title, starts_at, duration, location, status)
         aid = appointment_id or str(uuid.uuid4())
         now = utcnow()
         existing = self.db.execute('SELECT * FROM appointments WHERE org_id=? AND id=?', (p.org_id, aid)).fetchone()
@@ -53,6 +54,8 @@ class SchedulingMixin:
             self._allowed(p, 'schedule', existing['case_id'])
             if type(expected_version) is not int or existing['version'] != expected_version:
                 raise ValueError('Session changed; reload before saving')
+        historical_cancellation=bool(existing and status=='Cancelled' and existing['case_id']==case_id and existing['clinician_id']==clinician_id)
+        title, start, end = self._schedule_values(p, case_id, clinician_id, title, starts_at, duration, location, status,historical_cancellation=historical_cancellation)
         if status == 'Scheduled':
             self._check_availability(p,clinician_id,start,end)
         if status != 'Cancelled':

@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from scheduling import SchedulingMixin
 from planning import PlanningMixin
 from operations import OperationsMixin
+from workspace import WorkspaceMixin
 
 class Denied(PermissionError): pass
 class NotReady(RuntimeError): pass
@@ -38,7 +39,7 @@ class Vault:
     def open(self, value: bytes, context: str) -> bytes:
         return self.cipher.decrypt(value[:12], value[12:], context.encode())
 
-class Backend(SchedulingMixin, PlanningMixin, OperationsMixin):
+class Backend(SchedulingMixin, PlanningMixin, OperationsMixin, WorkspaceMixin):
     """Local validation adapter. PHI ingestion is deliberately unavailable.
     Role and case assignment checks are server-side and read from the database.
     """

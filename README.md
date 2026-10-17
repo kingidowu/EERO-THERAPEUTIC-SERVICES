@@ -65,3 +65,5 @@ The new [staff setup guide](backend/STAFF_SETUP.md) covers local configuration, 
 The shared staff screen now includes **Staff tasks** and **Waitlist** tabs. Tasks support assigned staff, due dates, priority, overdue filters, editing, completion and reopening. Waitlist requests support priority, earliest date, recorded slot offers, decline/withdrawal, expiry and confirmed booking into the schedule. These workflows use the authenticated API and server persistence. No email or text message is sent.
 
 Waitlist offers do not reserve time; acceptance rechecks availability and overlapping sessions. Only administrators, supervisors and assigned intake staff manage requests; clinicians can view requests for their assigned cases. Retried bookings return the original session without creating a duplicate. See [STAFF_SETUP.md](backend/STAFF_SETUP.md) for access, setup and deployment boundaries.
+
+The [functional audit](FUNCTIONAL_AUDIT.md) records the control fixes, shared case/staff administration, verification commands, comparison with existing practice systems and remaining release dependencies.

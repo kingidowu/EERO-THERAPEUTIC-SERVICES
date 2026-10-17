@@ -56,3 +56,5 @@ CREATE TABLE IF NOT EXISTS waitlist(
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_waitlist_case ON waitlist(org_id,case_id) WHERE status IN ('Waiting','Offered');
 CREATE INDEX IF NOT EXISTS waitlist_queue ON waitlist(org_id,status,created_at,id);
+
+CREATE TABLE IF NOT EXISTS case_versions(case_id TEXT PRIMARY KEY REFERENCES cases(id),version INTEGER NOT NULL DEFAULT 1 CHECK(version>0),updated_at TEXT NOT NULL);

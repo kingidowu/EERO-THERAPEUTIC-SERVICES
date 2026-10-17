@@ -86,3 +86,7 @@ Current checks target Python 3.12+. The shared browser fixture uses synthetic pr
 ## Operational queues
 
 `operations.py` adds authorized/versioned task creation, assignment, updates, completion/reopening, and bounded filtered task reads. It also implements waitlist requests, versioned slot offers, expiry, decline/withdrawal, read-only clinician queue access and idempotent confirmed booking. The appointment and queue update commit together; conflict/availability checks are repeated at booking. All operations preserve tenant/case scope and audit their reads/writes. New `/api/tasks` and `/api/waitlist` routes share existing session, CSRF and Origin protections. See `STAFF_SETUP.md` for behavior and current deployment boundaries.
+
+## Shared case administration
+
+`workspace.py` supplies case creation, versioned label/status changes and case-team assignment/removal through authenticated `/api/cases` routes. Closure checks unresolved operations; removal checks future clinician sessions and assigned open tasks. `case_versions` adopts legacy cases at version zero and advances on edits. Bootstrap returns scoped case status/version and team information. Closed cases reject new scheduled appointments, waitlist entries and open tasks. See the repository functional audit for tests and release boundaries.

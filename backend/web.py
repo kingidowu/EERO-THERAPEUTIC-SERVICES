@@ -115,9 +115,9 @@ def create_app(config=None):
     def bootstrap():
         b=backend();p=g.principal;role=b._role(p)
         if role not in ('administrator','supervisor','clinician','intake'):raise Denied()
-        rows=b.db.execute("SELECT c.* FROM cases c WHERE c.org_id=? AND (?='administrator' OR EXISTS(SELECT 1 FROM assignments a WHERE a.org_id=c.org_id AND a.case_id=c.id AND a.user_id=?)) ORDER BY created_at,c.id LIMIT 501",(p.org_id,role,p.user_id)).fetchall()
+        rows=b.db.execute("SELECT c.*,COALESCE(v.version,0) AS version FROM cases c LEFT JOIN case_versions v ON v.case_id=c.id WHERE c.org_id=? AND (?='administrator' OR EXISTS(SELECT 1 FROM assignments a WHERE a.org_id=c.org_id AND a.case_id=c.id AND a.user_id=?)) ORDER BY created_at,c.id LIMIT 501",(p.org_id,role,p.user_id)).fetchall()
         if len(rows)>500:raise NotReady('Workspace exceeds the configured case limit')
-        cases=[{'id':r['id'],'label':b.vault.open(r['encrypted_label'],f"{p.org_id}/{r['id']}/label").decode()} for r in rows]
+        cases=[{'id':r['id'],'status':r['status'],'version':r['version'],'label':b.vault.open(r['encrypted_label'],f"{p.org_id}/{r['id']}/label").decode()} for r in rows]
         staff=b.db.execute("SELECT user_id FROM staff WHERE org_id=? AND role='clinician' AND active=1 AND (?='administrator' OR user_id=? OR EXISTS(SELECT 1 FROM assignments a JOIN assignments mine ON mine.org_id=a.org_id AND mine.case_id=a.case_id WHERE a.org_id=staff.org_id AND a.user_id=staff.user_id AND mine.user_id=?))",(p.org_id,role,p.user_id,p.user_id)).fetchall()
         clinicians=[{'id':r[0],'name':r[0]} for r in staff]
         ids={c['id'] for c in cases};allowed_staff={c['id'] for c in clinicians}
@@ -127,8 +127,10 @@ def create_app(config=None):
         task_staff=[{'id':r['user_id'],'name':r['user_id'],'role':r['role']} for r in b.db.execute("SELECT DISTINCT s.user_id,s.role FROM staff s JOIN assignments a ON a.org_id=s.org_id AND a.user_id=s.user_id WHERE s.org_id=? AND s.active=1 AND s.role IN ('administrator','supervisor','clinician','intake') AND (?='administrator' OR EXISTS(SELECT 1 FROM assignments mine WHERE mine.org_id=a.org_id AND mine.case_id=a.case_id AND mine.user_id=?)) ORDER BY s.user_id",(p.org_id,role,p.user_id))]
         task_staff_ids={s['id'] for s in task_staff}
         task_assignments=[{'case_id':r['case_id'],'user_id':r['user_id']} for r in b.db.execute('SELECT case_id,user_id FROM assignments WHERE org_id=?',(p.org_id,)) if r['case_id'] in ids and r['user_id'] in task_staff_ids]
+        assignable_staff=[dict(r) for r in b.db.execute("SELECT user_id AS id,user_id AS name,role FROM staff WHERE org_id=? AND active=1 AND role<>'billing' ORDER BY user_id",(p.org_id,))] if role in ('administrator','supervisor') else []
+        case_assignments=[dict(r) for r in b.db.execute('SELECT a.case_id,s.user_id,s.user_id AS name,s.role,s.active FROM assignments a JOIN staff s ON s.org_id=a.org_id AND s.user_id=a.user_id WHERE a.org_id=?',(p.org_id,)) if r['case_id'] in ids]
         with b.db:b._audit(p,'workspace.read','workspace')
-        return jsonify(user_id=p.user_id,role=role,timezone=b.organization_timezone(p),csrf=session['csrf'],cases=cases,clinicians=clinicians,assignments=assignments,availability=availability,time_off=time_off,task_staff=task_staff,task_assignments=task_assignments)
+        return jsonify(user_id=p.user_id,role=role,timezone=b.organization_timezone(p),csrf=session['csrf'],cases=cases,clinicians=clinicians,assignments=assignments,availability=availability,time_off=time_off,task_staff=task_staff,task_assignments=task_assignments,assignable_staff=assignable_staff,case_assignments=case_assignments)
     @app.get('/api/appointments')
     def appointments():
         b=backend();zone=b.organization_timezone(g.principal)
@@ -197,4 +199,13 @@ def create_app(config=None):
     @app.post('/api/waitlist/book')
     def waitlist_book():
         d=body(['id','version','confirmation']);return jsonify(backend().book_waitlist(g.principal,d.get('id'),d.get('version'),d.get('confirmation')))
+    @app.post('/api/cases')
+    def case_create():
+        d=body(['label']);return jsonify(backend().create_workspace_case(g.principal,d.get('label')))
+    @app.post('/api/cases/update')
+    def case_update():
+        d=body(['id','version','label','status']);return jsonify(backend().update_workspace_case(g.principal,d.get('id'),d.get('version'),d.get('label'),d.get('status')))
+    @app.post('/api/cases/assignment')
+    def case_assignment():
+        d=body(['id','version','user_id','action']);return jsonify(backend().update_case_assignment(g.principal,d.get('id'),d.get('version'),d.get('user_id'),d.get('action')))
     return app
